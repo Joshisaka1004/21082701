@@ -1,0 +1,10 @@
+# Sudoku Generator Abhängigkeiten
+
+# Basis (immer erforderlich)
+# Python 3.7+
+
+# Optional für Bildexport
+Pillow>=9.0.0
+
+# Optional für PDF-Export
+reportlab>=3.6.0
