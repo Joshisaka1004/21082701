@@ -188,8 +188,13 @@ class Generator:
         self.size = size
         self.difficulty = difficulty
 
-    def generate(self, timeout: float = 30.0) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
+    def generate(self, timeout: float = None) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
         """Generate puzzle"""
+        # Auto-adjust timeout based on size if not specified
+        if timeout is None:
+            timeout_map = {5: 30, 6: 45, 7: 60, 8: 90, 9: 120}
+            timeout = timeout_map.get(self.size, 60)
+
         start = time.time()
         attempts = 0
 
