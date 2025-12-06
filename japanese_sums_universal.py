@@ -34,7 +34,9 @@ class UniversalSolver:
         self.solutions_count = 0
         self.solution = None
         self.nodes_explored = 0
-        self.max_nodes = 500000
+        # Erhöht auf 5,000,000 für garantierte Eindeutigkeit bei großen Gittern
+        # Bisherige Tests zeigten, dass 9x9 und 7x10 das alte Limit (500,000) erreichten
+        self.max_nodes = 5000000
 
     def count_solutions(self, max_count: int = 2) -> int:
         self.solutions_count = 0
