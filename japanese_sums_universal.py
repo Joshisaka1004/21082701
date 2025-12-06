@@ -207,10 +207,22 @@ class UniversalGenerator:
         best_candidate = None
         best_score = 0
 
+        # Dynamische Füllraten-Anpassung für 100% Garantie
+        fill_rate_boost = 0.0
+        last_boost_at = 0
+        rejected_due_to_limit = 0  # Zähle verworfene Kandidaten
+
         while time.time() - start < timeout:
             attempts += 1
 
-            grid = self._create_grouped_grid()
+            # AGGRESSIVERE Strategie: Erhöhe Füllrate nach nur 8 Versuchen
+            if attempts - last_boost_at > 8 and rejected_due_to_limit > 3:
+                fill_rate_boost += 0.08  # +8% Füllrate (war 5%)
+                last_boost_at = attempts
+                rejected_due_to_limit = 0
+                print(f"  (Füllrate erhöht um {fill_rate_boost*100:.0f}% nach {attempts} Versuchen)")
+
+            grid = self._create_grouped_grid(fill_rate_boost)
 
             row_clues = [self._get_clues(grid[r]) for r in range(self.rows)]
             col_clues = [self._get_clues([grid[r][c] for r in range(self.rows)]) for c in range(self.cols)]
@@ -231,6 +243,7 @@ class UniversalGenerator:
                 return grid, row_clues, col_clues
             elif count == 1 and solver.hit_limit:
                 # Verwerfe diesen Kandidaten - Limit erreicht, keine Garantie!
+                rejected_due_to_limit += 1
                 continue
 
             if count == 0 and quality > best_score:
@@ -243,24 +256,29 @@ class UniversalGenerator:
 
         raise TimeoutError(f"Timeout nach {timeout:.0f}s ({attempts} Versuche)")
 
-    def _create_grouped_grid(self) -> List[List[int]]:
+    def _create_grouped_grid(self, fill_rate_boost: float = 0.0) -> List[List[int]]:
         grid = [[0] * self.cols for _ in range(self.rows)]
         row_used = [set() for _ in range(self.rows)]
         col_used = [set() for _ in range(self.cols)]
 
-        self._place_groups(grid, row_used, col_used)
+        self._place_groups(grid, row_used, col_used, fill_rate_boost)
 
         return grid
 
-    def _place_groups(self, grid: List[List[int]], row_used: List[Set[int]], col_used: List[Set[int]]):
-        # Erhöhte Füllraten für schnellere Verifikation (100% Eindeutigkeitsgarantie)
+    def _place_groups(self, grid: List[List[int]], row_used: List[Set[int]], col_used: List[Set[int]], fill_rate_boost: float = 0.0):
+        # DEUTLICH erhöhte Basis-Füllraten für 100% Eindeutigkeitsgarantie
         rates = {
-            Difficulty.EASY: (0.65, 0.75),    # War (0.60, 0.70)
-            Difficulty.MEDIUM: (0.55, 0.65),  # War (0.50, 0.60)
-            Difficulty.HARD: (0.45, 0.55),    # War (0.40, 0.50)
-            Difficulty.EXPERT: (0.40, 0.50)   # War (0.35, 0.45)
+            Difficulty.EASY: (0.70, 0.80),    # War (0.65, 0.75)
+            Difficulty.MEDIUM: (0.62, 0.72),  # War (0.55, 0.65)
+            Difficulty.HARD: (0.52, 0.62),    # War (0.45, 0.55)
+            Difficulty.EXPERT: (0.47, 0.57)   # War (0.40, 0.50)
         }
         min_r, max_r = rates[self.difficulty]
+
+        # Dynamische Erhöhung der Füllrate wenn nötig
+        min_r = min(0.95, min_r + fill_rate_boost)
+        max_r = min(0.95, max_r + fill_rate_boost)
+
         target_cells = int(self.rows * self.cols * random.uniform(min_r, max_r))
 
         # Gruppengrößen anpassen basierend auf kleinerer Dimension
