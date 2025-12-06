@@ -34,14 +34,16 @@ class UniversalSolver:
         self.solutions_count = 0
         self.solution = None
         self.nodes_explored = 0
-        # Erhöht auf 5,000,000 für garantierte Eindeutigkeit bei großen Gittern
-        # Bisherige Tests zeigten, dass 9x9 und 7x10 das alte Limit (500,000) erreichten
-        self.max_nodes = 5000000
+        # Erhöht auf 10,000,000 für garantierte Eindeutigkeit
+        # Rätsel die dieses Limit erreichen werden VERWORFEN und neu generiert
+        self.max_nodes = 10000000
+        self.hit_limit = False  # Flag um zu erkennen wenn Limit erreicht wurde
 
     def count_solutions(self, max_count: int = 2) -> int:
         self.solutions_count = 0
         self.solution = None
         self.nodes_explored = 0
+        self.hit_limit = False
 
         grid = [[0] * self.cols for _ in range(self.rows)]
         self._solve(grid, 0, 0, max_count)
@@ -50,6 +52,8 @@ class UniversalSolver:
 
     def _solve(self, grid: List[List[int]], row: int, col: int, max_count: int) -> bool:
         if self.solutions_count >= max_count or self.nodes_explored > self.max_nodes:
+            if self.nodes_explored > self.max_nodes:
+                self.hit_limit = True
             return False
 
         self.nodes_explored += 1
@@ -185,17 +189,18 @@ class UniversalGenerator:
     def generate(self, timeout: float = None) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
         if timeout is None:
             # Timeout basierend auf Gittergröße
+            # Erhöht weil wir jetzt Kandidaten verwerfen die max_nodes erreichen
             total_cells = self.rows * self.cols
             if total_cells <= 30:
-                timeout = 30
-            elif total_cells <= 50:
-                timeout = 45
-            elif total_cells <= 70:
                 timeout = 60
-            elif total_cells <= 90:
+            elif total_cells <= 50:
                 timeout = 90
-            else:
+            elif total_cells <= 70:
                 timeout = 120
+            elif total_cells <= 90:
+                timeout = 150
+            else:
+                timeout = 180
 
         start = time.time()
         attempts = 0
@@ -217,9 +222,16 @@ class UniversalGenerator:
             solver = UniversalSolver(self.rows, self.cols, row_clues, col_clues)
             count = solver.count_solutions(max_count=2)
 
-            if count == 1:
+            # WICHTIG: Nur akzeptieren wenn NICHT das Limit erreicht wurde!
+            # Das garantiert 100% Eindeutigkeit
+            if count == 1 and not solver.hit_limit:
+                nodes_pct = (solver.nodes_explored / solver.max_nodes) * 100
                 print(f"  (Generiert nach {attempts} Versuchen in {time.time()-start:.1f}s)")
+                print(f"  (Verifiziert: {solver.nodes_explored:,} Knoten, {nodes_pct:.1f}% des Limits)")
                 return grid, row_clues, col_clues
+            elif count == 1 and solver.hit_limit:
+                # Verwerfe diesen Kandidaten - Limit erreicht, keine Garantie!
+                continue
 
             if count == 0 and quality > best_score:
                 best_score = quality
@@ -241,11 +253,12 @@ class UniversalGenerator:
         return grid
 
     def _place_groups(self, grid: List[List[int]], row_used: List[Set[int]], col_used: List[Set[int]]):
+        # Erhöhte Füllraten für schnellere Verifikation (100% Eindeutigkeitsgarantie)
         rates = {
-            Difficulty.EASY: (0.60, 0.70),
-            Difficulty.MEDIUM: (0.50, 0.60),
-            Difficulty.HARD: (0.40, 0.50),
-            Difficulty.EXPERT: (0.35, 0.45)
+            Difficulty.EASY: (0.65, 0.75),    # War (0.60, 0.70)
+            Difficulty.MEDIUM: (0.55, 0.65),  # War (0.50, 0.60)
+            Difficulty.HARD: (0.45, 0.55),    # War (0.40, 0.50)
+            Difficulty.EXPERT: (0.40, 0.50)   # War (0.35, 0.45)
         }
         min_r, max_r = rates[self.difficulty]
         target_cells = int(self.rows * self.cols * random.uniform(min_r, max_r))
