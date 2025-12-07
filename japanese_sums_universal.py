@@ -34,10 +34,11 @@ class UniversalSolver:
         self.solutions_count = 0
         self.solution = None
         self.nodes_explored = 0
-        # Erhöht auf 10,000,000 für garantierte Eindeutigkeit
-        # Rätsel die dieses Limit erreichen werden VERWORFEN und neu generiert
-        self.max_nodes = 10000000
-        self.hit_limit = False  # Flag um zu erkennen wenn Limit erreicht wurde
+        # MASSIV erhöht auf 50,000,000 für 100% Garantie
+        # Kleinere Gitter (5x5, 6x6) brauchen nur wenige tausend Knoten
+        # Größere Gitter (9x9, 10x10) haben genug Puffer
+        self.max_nodes = 50000000
+        self.hit_limit = False
 
     def count_solutions(self, max_count: int = 2) -> int:
         self.solutions_count = 0
@@ -207,17 +208,17 @@ class UniversalGenerator:
         best_candidate = None
         best_score = 0
 
-        # Dynamische Füllraten-Anpassung für 100% Garantie
+        # Adaptive Strategie: Nur minimal anpassen wenn wirklich nötig
         fill_rate_boost = 0.0
         last_boost_at = 0
-        rejected_due_to_limit = 0  # Zähle verworfene Kandidaten
+        rejected_due_to_limit = 0
 
         while time.time() - start < timeout:
             attempts += 1
 
-            # AGGRESSIVERE Strategie: Erhöhe Füllrate nach nur 8 Versuchen
-            if attempts - last_boost_at > 8 and rejected_due_to_limit > 3:
-                fill_rate_boost += 0.08  # +8% Füllrate (war 5%)
+            # Sehr konservative Anpassung: Nur nach vielen Verwerfungen
+            if attempts - last_boost_at > 25 and rejected_due_to_limit > 10:
+                fill_rate_boost += 0.03  # Nur +3% (war +8%!)
                 last_boost_at = attempts
                 rejected_due_to_limit = 0
                 print(f"  (Füllrate erhöht um {fill_rate_boost*100:.0f}% nach {attempts} Versuchen)")
@@ -266,12 +267,13 @@ class UniversalGenerator:
         return grid
 
     def _place_groups(self, grid: List[List[int]], row_used: List[Set[int]], col_used: List[Set[int]], fill_rate_boost: float = 0.0):
-        # DEUTLICH erhöhte Basis-Füllraten für 100% Eindeutigkeitsgarantie
+        # KORRIGIERTE Füllraten: NIEDRIGER ist BESSER für Verifikation!
+        # Niedrige Füllraten = weniger Constraints = schnellere Verifikation
         rates = {
-            Difficulty.EASY: (0.70, 0.80),    # War (0.65, 0.75)
-            Difficulty.MEDIUM: (0.62, 0.72),  # War (0.55, 0.65)
-            Difficulty.HARD: (0.52, 0.62),    # War (0.45, 0.55)
-            Difficulty.EXPERT: (0.47, 0.57)   # War (0.40, 0.50)
+            Difficulty.EASY: (0.38, 0.48),    # 38-48% (war 70-80%!)
+            Difficulty.MEDIUM: (0.32, 0.42),  # 32-42% (war 62-72%!)
+            Difficulty.HARD: (0.28, 0.38),    # 28-38% (war 52-62%!)
+            Difficulty.EXPERT: (0.24, 0.34)   # 24-34% (war 47-57%!)
         }
         min_r, max_r = rates[self.difficulty]
 
