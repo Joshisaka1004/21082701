@@ -189,19 +189,18 @@ class UniversalGenerator:
 
     def generate(self, timeout: float = None) -> Tuple[List[List[int]], List[List[int]], List[List[int]]]:
         if timeout is None:
-            # Timeout basierend auf Gittergröße
-            # Erhöht weil wir jetzt Kandidaten verwerfen die max_nodes erreichen
+            # Großzügige Timeouts für 8x8 und 9x9
             total_cells = self.rows * self.cols
             if total_cells <= 30:
-                timeout = 60
-            elif total_cells <= 50:
-                timeout = 90
-            elif total_cells <= 70:
                 timeout = 120
-            elif total_cells <= 90:
-                timeout = 150
-            else:
+            elif total_cells <= 50:
                 timeout = 180
+            elif total_cells <= 70:
+                timeout = 240
+            elif total_cells <= 90:
+                timeout = 300
+            else:
+                timeout = 360
 
         start = time.time()
         attempts = 0
@@ -267,14 +266,38 @@ class UniversalGenerator:
         return grid
 
     def _place_groups(self, grid: List[List[int]], row_used: List[Set[int]], col_used: List[Set[int]], fill_rate_boost: float = 0.0):
-        # KORRIGIERTE Füllraten: NIEDRIGER ist BESSER für Verifikation!
-        # Niedrige Füllraten = weniger Constraints = schnellere Verifikation
-        rates = {
-            Difficulty.EASY: (0.38, 0.48),    # 38-48% (war 70-80%!)
-            Difficulty.MEDIUM: (0.32, 0.42),  # 32-42% (war 62-72%!)
-            Difficulty.HARD: (0.28, 0.38),    # 28-38% (war 52-62%!)
-            Difficulty.EXPERT: (0.24, 0.34)   # 24-34% (war 47-57%!)
-        }
+        # GRÖSSEN-SPEZIFISCHE Füllraten: Größere Gitter = NIEDRIGERE Raten!
+        total_cells = self.rows * self.cols
+
+        if total_cells <= 36:  # 5x5, 6x6
+            rates = {
+                Difficulty.EASY: (0.38, 0.48),
+                Difficulty.MEDIUM: (0.32, 0.42),
+                Difficulty.HARD: (0.28, 0.38),
+                Difficulty.EXPERT: (0.24, 0.34)
+            }
+        elif total_cells <= 49:  # 7x7
+            rates = {
+                Difficulty.EASY: (0.24, 0.32),
+                Difficulty.MEDIUM: (0.18, 0.26),  # Gesenkt auf 8x8 Niveau!
+                Difficulty.HARD: (0.14, 0.22),
+                Difficulty.EXPERT: (0.10, 0.18)
+            }
+        elif total_cells <= 64:  # 8x8
+            rates = {
+                Difficulty.EASY: (0.22, 0.30),
+                Difficulty.MEDIUM: (0.16, 0.24),  # DRASTISCH gesenkt!
+                Difficulty.HARD: (0.12, 0.20),
+                Difficulty.EXPERT: (0.08, 0.16)
+            }
+        else:  # 9x9, 10x10+
+            rates = {
+                Difficulty.EASY: (0.18, 0.26),
+                Difficulty.MEDIUM: (0.12, 0.20),  # DRASTISCH gesenkt!
+                Difficulty.HARD: (0.08, 0.16),
+                Difficulty.EXPERT: (0.04, 0.12)
+            }
+
         min_r, max_r = rates[self.difficulty]
 
         # Dynamische Erhöhung der Füllrate wenn nötig
