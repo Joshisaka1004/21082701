@@ -422,53 +422,103 @@ def generate_unique_puzzle(
 
 
 # ============================================================================
-# Testing
+# CLI Interface
 # ============================================================================
 
-if __name__ == "__main__":
+def print_puzzle(row_clues: List[List[int]], col_clues: List[List[int]]) -> None:
+    """Print puzzle clues in a readable format."""
+    rows = len(row_clues)
+    cols = len(col_clues)
+    print("\nRow clues (links nach rechts):")
+    for idx, clues in enumerate(row_clues, 1):
+        print(f"  R{idx}: {clues}")
+    print("\nColumn clues (oben nach unten):")
+    for idx, clues in enumerate(col_clues, 1):
+        print(f"  C{idx}: {clues}")
+    print("\nGitter-Skizze (leere Zellen, schwarze Felder unbekannt):")
+    print("   " + " ".join(f"C{c+1}".ljust(3) for c in range(cols)))
+    for r in range(rows):
+        print(f"R{r+1} " + " . " * cols)
+
+
+def print_solution(grid: List[List[CellValue]]) -> None:
+    """Print solution grid."""
+    print("\nLösung (# = schwarzes Feld):")
+    for row in grid:
+        print(" ".join(str(cell) if cell != 0 else "#" for cell in row))
+
+
+def main() -> None:
+    """Interactive CLI for generating Japanese Sums puzzles."""
     print("\n" + "="*70)
     print("ULTIMATE Japanese Sums Generator")
-    print("Combining ChatGPT's brilliance with additional optimizations")
+    print("Combining ChatGPT's brilliance with optimizations")
+    print("="*70)
+    print("Schneller für große Grids (8x8+), genauso gut für kleine!")
     print("="*70)
 
-    test_configs = [
-        (5, 5, "5x5"),
-        (6, 6, "6x6"),
-        (7, 7, "7x7"),
-        (8, 8, "8x8"),
-        (9, 9, "9x9"),
-    ]
+    try:
+        size_in = input("\nWähle die Größe (z.B. 5x7 oder 6, Standard 7x7): ").strip().lower()
+        if "x" in size_in:
+            parts = size_in.replace(" ", "").split("x")
+            rows = int(parts[0]) if parts[0] else 7
+            cols = int(parts[1]) if len(parts) > 1 and parts[1] else rows
+        elif size_in:
+            rows = cols = int(size_in)
+        else:
+            rows = cols = 7
+    except Exception:
+        rows = cols = 7
 
-    results = []
+    valid_range = range(5, 14)
+    if rows not in valid_range or cols not in valid_range:
+        print("Ungültige Größe, verwende 7x7.")
+        rows = cols = 7
 
-    for rows, cols, label in test_configs:
-        print(f"\nGeneriere {label}...")
-        start = time.time()
+    while True:
         try:
-            row_clues, col_clues, solution = generate_unique_puzzle(rows, cols, max_attempts=800)
-            elapsed = time.time() - start
+            print(f"\nGeneriere {rows}x{cols} Rätsel...")
+            longest = max(rows, cols)
+            attempts = 1100 if longest >= 11 else 850 if longest >= 9 else 700
 
-            # Verify
-            count, _ = solve_japanese_sums(rows, cols, row_clues, col_clues, max_solutions=2)
+            start_time = time.time()
+            row_clues, col_clues, solution = generate_unique_puzzle(rows, cols, max_attempts=attempts)
+            elapsed = time.time() - start_time
 
-            empty_rows = sum(1 for rc in row_clues if len(rc) == 0)
-            empty_cols = sum(1 for cc in col_clues if len(cc) == 0)
+            print(f"✓ Generiert in {elapsed:.2f}s")
 
-            print(f"✓ SUCCESS in {elapsed:.3f}s")
-            print(f"  Solutions: {count}")
-            print(f"  Empty rows/cols: {empty_rows}/{empty_cols}")
+        except RuntimeError as exc:
+            print(f"Konnte kein eindeutiges Rätsel erzeugen: {exc}")
+            return
 
-            results.append((label, True, elapsed))
+        print_puzzle(row_clues, col_clues)
 
-        except Exception as e:
-            elapsed = time.time() - start
-            print(f"✗ FAILED after {elapsed:.2f}s: {e}")
-            results.append((label, False, elapsed))
+        show_solution = input("\nLösung anzeigen? (j/n): ").strip().lower().startswith("j")
+        if show_solution and solution:
+            print_solution(solution)
 
-    print("\n" + "="*70)
-    print("RESULTS SUMMARY")
-    print("="*70)
+        again = input("\nNoch ein Rätsel erzeugen? (j/n): ").strip().lower()
+        if again == "j":
+            size_in = input("Neue Größe (leer = gleich lassen, z.B. 5x7): ").strip().lower()
+            if size_in:
+                prev_rows, prev_cols = rows, cols
+                try:
+                    if "x" in size_in:
+                        parts = size_in.replace(" ", "").split("x")
+                        rows = int(parts[0]) if parts[0] else rows
+                        cols = int(parts[1]) if len(parts) > 1 and parts[1] else rows
+                    else:
+                        rows = cols = int(size_in)
+                    if rows not in valid_range or cols not in valid_range:
+                        print("Ungültige Größe, behalte vorherige bei.")
+                        rows, cols = prev_rows, prev_cols
+                except Exception:
+                    print("Konnte Eingabe nicht lesen, behalte vorherige Größe.")
+                    rows, cols = prev_rows, prev_cols
+            continue
+        break
 
-    for label, success, elapsed in results:
-        status = "✓" if success else "✗"
-        print(f"{status} {label}: {elapsed:.3f}s")
+
+if __name__ == "__main__":
+    random.seed()
+    main()
