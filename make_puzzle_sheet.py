@@ -10,7 +10,7 @@ import os
 import random
 import time
 
-from japanese_skylines import generate_puzzle, solve, save_png, SKY
+from japanese_skylines import generate_puzzle, solve, save_image, SKY
 
 # (Zeilen, Spalten, Skyline-Anteil, Stufenname)
 SHEET = [
@@ -25,8 +25,12 @@ SHEET = [
 OUT = "puzzles"
 
 
-def build(out_dir: str = OUT, sheet=SHEET, seed: int | None = None):
-    """Erzeugt alle Raetsel des Satzes und gibt die Dateipfade zurueck."""
+def build(out_dir: str = OUT, sheet=SHEET, seed: int | None = None,
+          ending: str = ".png"):
+    """
+    Erzeugt alle Raetsel des Satzes und gibt die Dateipfade zurueck.
+    `ending` waehlt das Format - ".png" oder ".pdf".
+    """
     if seed is not None:
         random.seed(seed)
     os.makedirs(out_dir, exist_ok=True)
@@ -49,12 +53,12 @@ def build(out_dir: str = OUT, sheet=SHEET, seed: int | None = None):
         stem = f"{number}_{rows}x{cols}_{level.lower()}"
         head = f"Japanese Skylines  {rows}x{cols}  -  {level}"
 
-        puzzles.append(save_png(
-            os.path.join(out_dir, f"raetsel_{stem}.png"),
+        puzzles.append(save_image(
+            os.path.join(out_dir, f"raetsel_{stem}{ending}"),
             row_clues, col_clues, None, head,
         ))
-        solutions.append(save_png(
-            os.path.join(out_dir, f"loesung_{stem}.png"),
+        solutions.append(save_image(
+            os.path.join(out_dir, f"loesung_{stem}{ending}"),
             row_clues, col_clues, grid, head + "  -  Loesung",
         ))
 

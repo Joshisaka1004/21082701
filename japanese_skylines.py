@@ -53,6 +53,7 @@ Jedes erzeugte Raetsel hat garantiert genau eine Loesung.
 """
 from __future__ import annotations
 
+import os
 import random
 import time
 from copy import deepcopy
@@ -548,7 +549,7 @@ def _centered(draw, text: str, box: Tuple[int, int, int, int], font, fill) -> No
                ((y0 + y1) - (bottom + top)) // 2), text, font=font, fill=fill)
 
 
-def save_png(
+def save_image(
     path: str,
     row_clues: Sequence[LineClue],
     col_clues: Sequence[LineClue],
@@ -557,8 +558,10 @@ def save_png(
     cell: int = 62,
 ) -> str:
     """
-    Speichert das Raetsel als PNG. Ohne `grid` entsteht das leere Raetsel,
-    mit `grid` die Loesung. Skyline-Linien bekommen einen blauen Hinweisstreifen.
+    Speichert das Raetsel als Bild. Das Format ergibt sich aus der Endung von
+    `path` - .png und .pdf sind beide moeglich. Ohne `grid` entsteht das leere
+    Raetsel, mit `grid` die Loesung. Skyline-Linien bekommen einen blauen
+    Hinweisstreifen.
     """
     from PIL import Image, ImageDraw
 
@@ -653,13 +656,69 @@ def save_png(
                     note_y + int(cell * 0.3)], fill=_SKY_TINT, outline=_FAINT)
     draw.text((margin + int(cell * 0.42), note_y), note, font=note_font, fill=_FAINT)
 
-    image.save(path)
-    return path
+    folder = os.path.dirname(os.path.abspath(path))
+    os.makedirs(folder, exist_ok=True)
+    image.save(path, resolution=150.0) if path.lower().endswith(".pdf") \
+        else image.save(path)
+    return os.path.abspath(path)
+
+
+# Frueherer Name, damit bestehender Code weiterlaeuft
+save_png = save_image
 
 
 # ---------------------------------------------------------------------------
 # Kommandozeile
 # ---------------------------------------------------------------------------
+
+def _export_dialog(
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
+    solution: Sequence[Sequence[CellValue]],
+    rows: int,
+    cols: int,
+) -> None:
+    """Fragt ab, was wohin gespeichert werden soll, und legt die Dateien an."""
+    what = input("\nSpeichern? (r=Raetsel, l=Loesung, b=beides, n=nichts): ")
+    what = what.strip().lower()
+    if what not in ("r", "l", "b"):
+        return
+
+    try:
+        from PIL import Image  # noqa: F401
+    except ImportError:
+        print("  Dafuer wird Pillow gebraucht:  pip install Pillow")
+        return
+
+    kind = input("Format? (p=PNG, d=PDF, b=beides): ").strip().lower()
+    endings = {"p": (".png",), "d": (".pdf",), "b": (".png", ".pdf")}.get(kind)
+    if endings is None:
+        print("  Format nicht erkannt, verwende PNG.")
+        endings = (".png",)
+
+    folder = input("Ordner (leer = aktueller Ordner): ").strip()
+    folder = os.path.expanduser(folder) if folder else os.getcwd()
+
+    default_stem = f"skyline_{rows}x{cols}"
+    stem = input(f"Dateiname ohne Endung (Standard {default_stem}): ").strip()
+    stem = stem or default_stem
+
+    head = f"Japanese Skylines  {rows}x{cols}"
+    jobs = []
+    if what in ("r", "b"):
+        jobs.append(("raetsel", None, head))
+    if what in ("l", "b"):
+        jobs.append(("loesung", solution, head + "  -  Loesung"))
+
+    for label, grid, title in jobs:
+        for ending in endings:
+            path = os.path.join(folder, f"{stem}_{label}{ending}")
+            try:
+                written = save_image(path, row_clues, col_clues, grid, title)
+                print(f"  gespeichert: {written}")
+            except OSError as exc:
+                print(f"  konnte {path} nicht schreiben: {exc}")
+
 
 def _parse_size(text: str, fallback: Tuple[int, int]) -> Tuple[int, int]:
     text = text.strip().lower().replace(" ", "")
@@ -708,6 +767,8 @@ def main() -> None:
         if input("\nLoesung zeigen? (j/n): ").strip().lower().startswith("j"):
             print()
             print(render(row_clues, col_clues, solution))
+
+        _export_dialog(row_clues, col_clues, solution, rows, cols)
 
         if not input("\nNoch eins? (j/n): ").strip().lower().startswith("j"):
             break
