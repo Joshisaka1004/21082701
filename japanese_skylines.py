@@ -559,18 +559,80 @@ _BLACK_CELL = (44, 48, 54)
 _GRID = (60, 60, 60)
 
 
-def _font(size: int):
-    """Laedt eine TrueType-Schrift, mit Rueckfall auf Pillows Standard."""
+# Schriften, die auf den drei gaengigen Systemen vorhanden sind. Fehlt eine
+# skalierbare Schrift, faellt Pillow auf eine winzige Bitmap zurueck, die
+# jede Groessenangabe ignoriert - dann stehen mikrige Zahlen im grossen Gitter.
+_FONT_FILES = (
+    # macOS
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/System/Library/Fonts/Geneva.ttf",
+    # Linux
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    # Windows
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeuib.ttf",
+    # ohne Pfad - Pillow sucht selbst in den Systemverzeichnissen
+    "DejaVuSans-Bold.ttf", "Arial Bold.ttf", "arialbd.ttf", "Arial.ttf",
+)
+
+_FONT_WARNED = False
+
+
+@lru_cache(maxsize=None)
+def _font_file() -> Optional[str]:
+    """Sucht einmalig eine skalierbare Schrift und merkt sich das Ergebnis."""
     from PIL import ImageFont
-    for name in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-                 "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-                 "DejaVuSans-Bold.ttf"):
+    import glob
+
+    chosen = os.environ.get("JAPSKY_FONT")
+    for name in ((chosen,) if chosen else ()) + _FONT_FILES:
         try:
-            return ImageFont.truetype(name, size)
+            ImageFont.truetype(name, 20)
+            return name
         except OSError:
             continue
-    return ImageFont.load_default()
+
+    # Nichts aus der Liste da - die ueblichen Verzeichnisse durchsuchen
+    patterns = (
+        "/System/Library/Fonts/**/*.ttf", "/Library/Fonts/**/*.ttf",
+        os.path.expanduser("~/Library/Fonts/**/*.ttf"),
+        "/usr/share/fonts/**/*.ttf", "/usr/local/share/fonts/**/*.ttf",
+        "C:/Windows/Fonts/*.ttf",
+    )
+    for pattern in patterns:
+        for found in sorted(glob.glob(pattern, recursive=True)):
+            try:
+                ImageFont.truetype(found, 20)
+                return found
+            except OSError:
+                continue
+    return None
+
+
+def _font(size: int):
+    """Laedt eine skalierbare Schrift in der gewuenschten Groesse."""
+    global _FONT_WARNED
+    from PIL import ImageFont
+
+    name = _font_file()
+    if name is not None:
+        return ImageFont.truetype(name, size)
+
+    if not _FONT_WARNED:
+        print("  Hinweis: keine TrueType-Schrift gefunden, die Beschriftung "
+              "bleibt klein.\n  Abhilfe: pip install fonttools dejavu oder eine "
+              "Schrift ueber JAPSKY_FONT angeben.")
+        _FONT_WARNED = True
+    try:  # Pillow ab 10.1 kann seine Standardschrift skalieren
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def _centered(draw, text: str, box: Tuple[int, int, int, int], font, fill) -> None:
@@ -764,7 +826,9 @@ def save_image(
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     if path.lower().endswith(".pdf"):
         sheet = _page(row_clues, col_clues, grid, title, dpi)
-        sheet.save(path, "PDF", resolution=float(dpi))
+        # quality hoch, weil Pillow PDF-Seiten als JPEG ablegt und die
+        # Voreinstellung duenne Linien ausfransen laesst
+        sheet.save(path, "PDF", resolution=float(dpi), quality=95)
     else:
         _render(row_clues, col_clues, grid, title, cell).save(path)
     return os.path.abspath(path)
@@ -780,7 +844,7 @@ def save_pdf(path: str, sheets: Sequence[tuple], dpi: int = 300) -> str:
         raise ValueError("Keine Seiten zum Speichern")
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     pages = [_page(rc, cc, grid, title, dpi) for rc, cc, grid, title in sheets]
-    pages[0].save(path, "PDF", resolution=float(dpi),
+    pages[0].save(path, "PDF", resolution=float(dpi), quality=95,
                   save_all=True, append_images=pages[1:])
     return os.path.abspath(path)
 
@@ -815,6 +879,12 @@ def _export_dialog(batch: Sequence[tuple], rows: int, cols: int) -> None:
         print("  Format nicht erkannt, verwende PNG.")
         endings = (".png",)
 
+    one_file = True
+    if len(batch) > 1 and ".pdf" in endings:
+        one_file = not input(
+            "PDF: alles in einer Datei (a) oder je Raetsel eine (e)? "
+        ).strip().lower().startswith("e")
+
     folder = input("Ordner (leer = aktueller Ordner): ").strip()
     folder = os.path.expanduser(folder) if folder else os.getcwd()
 
@@ -840,17 +910,18 @@ def _export_dialog(batch: Sequence[tuple], rows: int, cols: int) -> None:
 
         for ending in endings:
             try:
-                if ending == ".pdf":
-                    # Mehrere Raetsel kommen als ein PDF mit einem Blatt je Seite
+                if ending == ".pdf" and one_file:
+                    # Ein PDF mit einem Blatt je Raetsel
                     path = os.path.join(folder, f"{stem}_{label}.pdf")
                     print(f"  schreibe {os.path.basename(path)} ...",
                           end="", flush=True)
                     written = save_pdf(path, pages)
-                    print(f"\r  gespeichert: {written}" + " " * 12)
+                    print(f"\r  gespeichert: {written}" + " " * 14)
                 else:
                     for number, page in enumerate(pages, start=1):
                         suffix = f"_{number}" if many else ""
-                        path = os.path.join(folder, f"{stem}{suffix}_{label}.png")
+                        path = os.path.join(folder,
+                                            f"{stem}{suffix}_{label}{ending}")
                         written = save_image(path, *page)
                         print(f"  gespeichert: {written}")
             except OSError as exc:
