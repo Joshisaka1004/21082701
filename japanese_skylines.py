@@ -515,6 +515,149 @@ def render(
 
 
 # ---------------------------------------------------------------------------
+# PNG-Ausgabe (benoetigt Pillow)
+# ---------------------------------------------------------------------------
+
+_INK = (20, 20, 20)
+_SKY_INK = (12, 90, 160)
+_SKY_TINT = (226, 240, 251)
+_BLACK_CELL = (44, 48, 54)
+_GRID = (60, 60, 60)
+_FAINT = (130, 130, 130)
+
+
+def _font(size: int):
+    """Laedt eine TrueType-Schrift, mit Rueckfall auf Pillows Standard."""
+    from PIL import ImageFont
+    for name in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                 "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+                 "DejaVuSans-Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _centered(draw, text: str, box: Tuple[int, int, int, int], font, fill) -> None:
+    """Schreibt `text` mittig in das Rechteck (x0, y0, x1, y1)."""
+    x0, y0, x1, y1 = box
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    draw.text((((x0 + x1) - (right + left)) // 2,
+               ((y0 + y1) - (bottom + top)) // 2), text, font=font, fill=fill)
+
+
+def save_png(
+    path: str,
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
+    grid: Optional[Sequence[Sequence[CellValue]]] = None,
+    title: str = "",
+    cell: int = 62,
+) -> str:
+    """
+    Speichert das Raetsel als PNG. Ohne `grid` entsteht das leere Raetsel,
+    mit `grid` die Loesung. Skyline-Linien bekommen einen blauen Hinweisstreifen.
+    """
+    from PIL import Image, ImageDraw
+
+    rows, cols = len(row_clues), len(col_clues)
+    clue_font = _font(int(cell * 0.42))
+    digit_font = _font(int(cell * 0.52))
+    title_font = _font(int(cell * 0.38))
+    note_font = _font(int(cell * 0.26))
+
+    deep_left = max(len(clue) for _, clue in row_clues)
+    deep_top = max(len(clue) for _, clue in col_clues)
+
+    # Hinweisfeld so breit machen, dass auch dreistellige Zahlen hineinpassen
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+    def text_width(text: str, font) -> int:
+        box = probe.textbbox((0, 0), text, font=font)
+        return box[2] - box[0]
+
+    widest = max(text_width(str(v), clue_font)
+                 for _, clue in list(row_clues) + list(col_clues) for v in clue)
+    slot = max(int(cell * 0.55), widest + int(cell * 0.26))
+
+    note = ("blau hinterlegt: Produkt der sichtbaren Haeuser je Gruppe"
+            "      sonst: Summe je Gruppe")
+    note_width = int(cell * 0.42) + text_width(note, note_font)
+
+    margin = int(cell * 0.55)
+    head = int(cell * 0.95) if title else margin
+    grid_x = margin + deep_left * slot
+    grid_y = head + deep_top * slot
+    width = max(grid_x + cols * cell + margin, margin + note_width + margin)
+    height = grid_y + rows * cell + margin + int(cell * 0.85)
+
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+
+    if title:
+        _centered(draw, title, (margin, int(cell * 0.12), width - margin,
+                                head - int(cell * 0.18)), title_font, _INK)
+
+    # Getoente Streifen hinter den Hinweisen der Skyline-Linien
+    for r, (kind, _) in enumerate(row_clues):
+        if kind == SKY:
+            y = grid_y + r * cell
+            draw.rectangle([margin, y, grid_x - 1, y + cell - 1], fill=_SKY_TINT)
+    for c, (kind, _) in enumerate(col_clues):
+        if kind == SKY:
+            x = grid_x + c * cell
+            draw.rectangle([x, head, x + cell - 1, grid_y - 1], fill=_SKY_TINT)
+
+    # Hinweise: rechtsbuendig bzw. unten am Gitter, damit sie daran kleben
+    for r, (kind, clue) in enumerate(row_clues):
+        ink = _SKY_INK if kind == SKY else _INK
+        y = grid_y + r * cell
+        for i, value in enumerate(reversed(clue)):
+            x = grid_x - (i + 1) * slot
+            _centered(draw, str(value), (x, y, x + slot, y + cell), clue_font, ink)
+    for c, (kind, clue) in enumerate(col_clues):
+        ink = _SKY_INK if kind == SKY else _INK
+        x = grid_x + c * cell
+        for i, value in enumerate(reversed(clue)):
+            y = grid_y - (i + 1) * slot
+            _centered(draw, str(value), (x, y, x + cell, y + slot), clue_font, ink)
+
+    # Zellen
+    for r in range(rows):
+        for c in range(cols):
+            x = grid_x + c * cell
+            y = grid_y + r * cell
+            if grid is not None:
+                value = grid[r][c]
+                if value == 0:
+                    draw.rectangle([x, y, x + cell, y + cell], fill=_BLACK_CELL)
+                else:
+                    _centered(draw, str(value), (x, y, x + cell, y + cell),
+                              digit_font, _INK)
+
+    # Gitterlinien
+    for r in range(rows + 1):
+        y = grid_y + r * cell
+        draw.line([(grid_x, y), (grid_x + cols * cell, y)], fill=_GRID, width=2)
+    for c in range(cols + 1):
+        x = grid_x + c * cell
+        draw.line([(x, grid_y), (x, grid_y + rows * cell)], fill=_GRID, width=2)
+    draw.rectangle([grid_x, grid_y, grid_x + cols * cell, grid_y + rows * cell],
+                   outline=_INK, width=4)
+
+    # Legende
+    note_y = grid_y + rows * cell + int(cell * 0.26)
+    draw.rectangle([margin, note_y + 2, margin + int(cell * 0.3),
+                    note_y + int(cell * 0.3)], fill=_SKY_TINT, outline=_FAINT)
+    draw.text((margin + int(cell * 0.42), note_y), note, font=note_font, fill=_FAINT)
+
+    image.save(path)
+    return path
+
+
+# ---------------------------------------------------------------------------
 # Kommandozeile
 # ---------------------------------------------------------------------------
 
