@@ -30,7 +30,10 @@ REGELN
 3. Jede Zeile und jede Spalte enthaelt mindestens eine Ziffer.
 4. Zwei Gruppen sind durch mindestens ein schwarzes Feld getrennt. Jede
    Hinweisliste nennt ihre Gruppen in der Reihenfolge, in der man sie von
-   der Seite des Hinweises aus antrifft.
+   der Seite des Hinweises aus antrifft. Auf allen vier Seiten steht die
+   erste dieser Gruppen am weitesten aussen: wer von aussen zum Gitter hin
+   liest, liest die Gruppen in ihrer Reihenfolge. Rechts und unten laeuft
+   das also entgegen der ueblichen Schreibrichtung.
 5. SUMMEN-Hinweis (links/oben): die Summe der Ziffern der Gruppe.
 6. SKYLINE-Hinweis (rechts/unten): das Produkt der sichtbaren Haeuser der
    Gruppe. Innerhalb einer Gruppe ist ein Haus sichtbar, wenn alle Haeuser
@@ -39,11 +42,15 @@ REGELN
 
 BEISPIEL fuer dieselbe Zeile  3 # 5 1 7  mit Gruppen [3] und [5,1,7]
 
-   als Summen-Zeile, links:    3 und 13, denn 5 + 1 + 7 = 13
-   als Skyline-Zeile, rechts:  7 und 3 - von rechts trifft man zuerst die
-                               Gruppe [5,1,7]. Dort steht die 7 vorn und
-                               verdeckt 1 und 5, bleibt also allein sichtbar.
-                               Dann folgt die 3.
+   als Summen-Zeile:    3  13 | 3 # 5 1 7 |
+                        Die 3 gehoert zur linken Gruppe und steht aussen,
+                        die 13 zur rechten, denn 5 + 1 + 7 = 13.
+
+   als Skyline-Zeile:        | 3 # 5 1 7 | 3  7
+                        Gelesen wird von rechts: die 7 aussen gehoert zur
+                        Gruppe [5,1,7] - die 7 steht dort vorn und verdeckt
+                        1 und 5, bleibt also allein sichtbar. Die 3 am
+                        Gitter gehoert zur Gruppe [3].
 
 NUETZLICHE DEDUKTIONSREGELN
 ---------------------------
@@ -494,10 +501,11 @@ def render(
 
     # Summen-Zeilen beschriften links, Skyline-Zeilen rechts
     left, right = [], []
+    # Auf jeder Seite steht die erste Gruppe, der man von dort begegnet, am
+    # weitesten aussen - rechts also in umgekehrter Schreibrichtung
     for kind, clue in row_clues:
-        text = " ".join(map(str, clue))
-        left.append("" if kind == SKY else text)
-        right.append(text if kind == SKY else "")
+        left.append("" if kind == SKY else " ".join(map(str, clue)))
+        right.append(" ".join(map(str, reversed(clue))) if kind == SKY else "")
     left_width = max(len(s) for s in left)
 
     # Summen-Spalten beschriften oben, Skyline-Spalten unten
@@ -538,7 +546,9 @@ def render(
     for level in range(deep):
         line = []
         for c in below:
-            line.append((c[level] if level < len(c) else "").center(cell_width))
+            # von unten gezaehlt: die erste Gruppe steht am weitesten unten
+            index = len(c) - 1 - level
+            line.append((c[index] if index >= 0 else "").center(cell_width))
         out.append(pad + " " + " ".join(line))
 
     sky = sum(1 for kind, _ in list(row_clues) + list(col_clues) if kind == SKY)
@@ -734,31 +744,28 @@ def _render(
     grid_right = grid_x + cols * cell
     grid_bottom = grid_y + rows * cell
 
+    # Auf allen vier Seiten gilt dasselbe: die erste Gruppe, der man von
+    # dieser Seite aus begegnet, steht am weitesten aussen. Wer von aussen
+    # nach innen liest, liest die Gruppen in ihrer Reihenfolge.
     for r, (kind, clue) in enumerate(row_clues):
         y = grid_y + r * cell
-        if kind == SKY:  # rechts, erste Gruppe von rechts zuerst
-            for i, value in enumerate(clue):
+        for i, value in enumerate(reversed(clue)):
+            if kind == SKY:
                 x = grid_right + i * slot
-                _centered(draw, str(value), (x, y, x + slot, y + cell),
-                          clue_font, sky)
-        else:  # links, letzte Gruppe naeher am Gitter
-            for i, value in enumerate(reversed(clue)):
+            else:
                 x = grid_x - (i + 1) * slot
-                _centered(draw, str(value), (x, y, x + slot, y + cell),
-                          clue_font, _INK)
+            _centered(draw, str(value), (x, y, x + slot, y + cell),
+                      clue_font, sky if kind == SKY else _INK)
 
     for c, (kind, clue) in enumerate(col_clues):
         x = grid_x + c * cell
-        if kind == SKY:  # unten, erste Gruppe von unten zuerst
-            for i, value in enumerate(clue):
+        for i, value in enumerate(reversed(clue)):
+            if kind == SKY:
                 y = grid_bottom + i * slot
-                _centered(draw, str(value), (x, y, x + cell, y + slot),
-                          clue_font, sky)
-        else:  # oben, letzte Gruppe naeher am Gitter
-            for i, value in enumerate(reversed(clue)):
+            else:
                 y = grid_y - (i + 1) * slot
-                _centered(draw, str(value), (x, y, x + cell, y + slot),
-                          clue_font, _INK)
+            _centered(draw, str(value), (x, y, x + cell, y + slot),
+                      clue_font, sky if kind == SKY else _INK)
 
     # Zellen
     for r in range(rows):
