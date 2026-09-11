@@ -581,19 +581,16 @@ def _centered(draw, text: str, box: Tuple[int, int, int, int], font, fill) -> No
                ((y0 + y1) - (bottom + top)) // 2), text, font=font, fill=fill)
 
 
-def save_image(
-    path: str,
+def _render(
     row_clues: Sequence[LineClue],
     col_clues: Sequence[LineClue],
     grid: Optional[Sequence[Sequence[CellValue]]] = None,
     title: str = "",
-    cell: int = 62,
-) -> str:
+    cell: int = 96,
+):
     """
-    Speichert das Raetsel als Bild. Das Format ergibt sich aus der Endung von
-    `path` - .png und .pdf sind beide moeglich. Ohne `grid` entsteht das leere
-    Raetsel, mit `grid` die Loesung. Skyline-Linien bekommen einen blauen
-    Hinweisstreifen.
+    Zeichnet das Raetsel und gibt das Bild zurueck. `cell` ist die Kantenlaenge
+    einer Gitterzelle in Pixeln; alle uebrigen Masse haengen daran.
     """
     from PIL import Image, ImageDraw
 
@@ -623,9 +620,11 @@ def save_image(
                  for _, clue in list(row_clues) + list(col_clues) for v in clue)
     slot = max(int(cell * 0.55), widest + int(cell * 0.26))
 
-    note = ("links und oben: Summe je Gruppe        "
-            "rechts und unten: Produkt der von dort sichtbaren Haeuser")
-    note_width = text_width(note, note_font)
+    # Zweizeilig, sonst diktiert die Legende die Bildbreite und das
+    # Raetsel selbst bleibt klein
+    notes = ("links und oben: Summe je Gruppe",
+             "rechts und unten: Produkt der von dort sichtbaren Haeuser")
+    note_width = max(text_width(s, note_font) for s in notes)
 
     margin = int(cell * 0.55)
     head = int(cell * 0.95) if title else margin
@@ -634,7 +633,7 @@ def save_image(
     width = max(grid_x + cols * cell + deep_right * slot + margin,
                 margin + note_width + margin)
     height = (grid_y + rows * cell + deep_bottom * slot
-              + margin + int(cell * 0.85))
+              + margin + int(cell * 1.15))  # Platz fuer die zweizeilige Legende
 
     image = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(image)
@@ -686,27 +685,103 @@ def save_image(
                     _centered(draw, str(value), (x, y, x + cell, y + cell),
                               digit_font, _INK)
 
-    # Gitterlinien
+    # Gitterlinien - Staerke waechst mit der Zelle, sonst wirkt ein
+    # grosses Blatt haarfein
+    thin = max(2, round(cell / 40))
+    thick = max(4, round(cell / 16))
     for r in range(rows + 1):
         y = grid_y + r * cell
-        draw.line([(grid_x, y), (grid_x + cols * cell, y)], fill=_GRID, width=2)
+        draw.line([(grid_x, y), (grid_x + cols * cell, y)], fill=_GRID, width=thin)
     for c in range(cols + 1):
         x = grid_x + c * cell
-        draw.line([(x, grid_y), (x, grid_y + rows * cell)], fill=_GRID, width=2)
+        draw.line([(x, grid_y), (x, grid_y + rows * cell)], fill=_GRID, width=thin)
     draw.rectangle([grid_x, grid_y, grid_x + cols * cell, grid_y + rows * cell],
-                   outline=_INK, width=4)
+                   outline=_INK, width=thick)
 
     # Legende, farblich passend zu den Hinweisen selbst
     note_y = grid_bottom + deep_bottom * slot + int(cell * 0.26)
-    head_note, _, sky_note = note.partition("rechts und unten")
-    draw.text((margin, note_y), head_note, font=note_font, fill=_INK)
-    draw.text((margin + text_width(head_note, note_font), note_y),
-              "rechts und unten" + sky_note, font=note_font, fill=_SKY_INK)
+    step = int(cell * 0.34)
+    for i, (text, ink) in enumerate(zip(notes, (_INK, _SKY_INK))):
+        draw.text((margin, note_y + i * step), text, font=note_font, fill=ink)
 
-    folder = os.path.dirname(os.path.abspath(path))
-    os.makedirs(folder, exist_ok=True)
-    image.save(path, resolution=150.0) if path.lower().endswith(".pdf") \
-        else image.save(path)
+    return image
+
+
+# DIN A4 hochkant, in Zoll
+_A4 = (8.27, 11.69)
+
+
+def _page(
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
+    grid: Optional[Sequence[Sequence[CellValue]]] = None,
+    title: str = "",
+    dpi: int = 300,
+    paper: Tuple[float, float] = _A4,
+):
+    """
+    Setzt das Raetsel mittig auf ein Blatt und waehlt die Zellgroesse so, dass
+    es das Blatt gut ausfuellt - der Grund, warum die alten PDFs so klein
+    geraten waren.
+    """
+    from PIL import Image
+
+    sheet_px = (int(paper[0] * dpi), int(paper[1] * dpi))
+    usable = (sheet_px[0] * 0.88, sheet_px[1] * 0.88)
+
+    # Einmal klein vormessen, daraus die passende Zellgroesse hochrechnen
+    probe_cell = 60
+    probe = _render(row_clues, col_clues, grid, title, probe_cell)
+    factor = min(usable[0] / probe.width, usable[1] / probe.height)
+    cell = max(20, int(probe_cell * factor))
+
+    art = _render(row_clues, col_clues, grid, title, cell)
+    while (art.width > usable[0] or art.height > usable[1]) and cell > 20:
+        cell = int(cell * 0.94) or 20
+        art = _render(row_clues, col_clues, grid, title, cell)
+
+    sheet = Image.new("RGB", sheet_px, "white")
+    sheet.paste(art, ((sheet_px[0] - art.width) // 2,
+                      (sheet_px[1] - art.height) // 2))
+    return sheet
+
+
+def save_image(
+    path: str,
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
+    grid: Optional[Sequence[Sequence[CellValue]]] = None,
+    title: str = "",
+    cell: int = 96,
+    dpi: int = 300,
+) -> str:
+    """
+    Speichert das Raetsel. Die Endung von `path` bestimmt das Format: .pdf
+    ergibt ein A4-Blatt in Druckqualitaet, alles andere ein Bild in
+    Bildschirmgroesse. Ohne `grid` entsteht das leere Raetsel, mit `grid` die
+    Loesung.
+    """
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    if path.lower().endswith(".pdf"):
+        sheet = _page(row_clues, col_clues, grid, title, dpi)
+        sheet.save(path, "PDF", resolution=float(dpi))
+    else:
+        _render(row_clues, col_clues, grid, title, cell).save(path)
+    return os.path.abspath(path)
+
+
+def save_pdf(path: str, sheets: Sequence[tuple], dpi: int = 300) -> str:
+    """
+    Schreibt mehrere Raetsel als mehrseitiges A4-PDF, ein Blatt je Raetsel.
+    `sheets` enthaelt Tupel (row_clues, col_clues, grid, title); `grid` darf
+    None sein fuer das leere Raetsel.
+    """
+    if not sheets:
+        raise ValueError("Keine Seiten zum Speichern")
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    pages = [_page(rc, cc, grid, title, dpi) for rc, cc, grid, title in sheets]
+    pages[0].save(path, "PDF", resolution=float(dpi),
+                  save_all=True, append_images=pages[1:])
     return os.path.abspath(path)
 
 
@@ -718,14 +793,11 @@ save_png = save_image
 # Kommandozeile
 # ---------------------------------------------------------------------------
 
-def _export_dialog(
-    row_clues: Sequence[LineClue],
-    col_clues: Sequence[LineClue],
-    solution: Sequence[Sequence[CellValue]],
-    rows: int,
-    cols: int,
-) -> None:
-    """Fragt ab, was wohin gespeichert werden soll, und legt die Dateien an."""
+def _export_dialog(batch: Sequence[tuple], rows: int, cols: int) -> None:
+    """
+    Fragt ab, was wohin gespeichert werden soll, und legt die Dateien an.
+    `batch` enthaelt Tupel (row_clues, col_clues, solution).
+    """
     what = input("\nSpeichern? (r=Raetsel, l=Loesung, b=beides, n=nichts): ")
     what = what.strip().lower()
     if what not in ("r", "l", "b"):
@@ -750,21 +822,39 @@ def _export_dialog(
     stem = input(f"Dateiname ohne Endung (Standard {default_stem}): ").strip()
     stem = stem or default_stem
 
-    head = f"Japanese Skylines  {rows}x{cols}"
-    jobs = []
-    if what in ("r", "b"):
-        jobs.append(("raetsel", None, head))
-    if what in ("l", "b"):
-        jobs.append(("loesung", solution, head + "  -  Loesung"))
+    many = len(batch) > 1
+    wanted = [("raetsel", False)] if what == "r" else \
+             [("loesung", True)] if what == "l" else \
+             [("raetsel", False), ("loesung", True)]
 
-    for label, grid, title in jobs:
+    for label, with_solution in wanted:
+        pages = []
+        for number, (row_clues, col_clues, solution) in enumerate(batch, start=1):
+            head = f"Japanese Skylines  {rows}x{cols}"
+            if many:
+                head += f"  -  Nr. {number}"
+            if with_solution:
+                head += "  -  Loesung"
+            pages.append((row_clues, col_clues,
+                          solution if with_solution else None, head))
+
         for ending in endings:
-            path = os.path.join(folder, f"{stem}_{label}{ending}")
             try:
-                written = save_image(path, row_clues, col_clues, grid, title)
-                print(f"  gespeichert: {written}")
+                if ending == ".pdf":
+                    # Mehrere Raetsel kommen als ein PDF mit einem Blatt je Seite
+                    path = os.path.join(folder, f"{stem}_{label}.pdf")
+                    print(f"  schreibe {os.path.basename(path)} ...",
+                          end="", flush=True)
+                    written = save_pdf(path, pages)
+                    print(f"\r  gespeichert: {written}" + " " * 12)
+                else:
+                    for number, page in enumerate(pages, start=1):
+                        suffix = f"_{number}" if many else ""
+                        path = os.path.join(folder, f"{stem}{suffix}_{label}.png")
+                        written = save_image(path, *page)
+                        print(f"  gespeichert: {written}")
             except OSError as exc:
-                print(f"  konnte {path} nicht schreiben: {exc}")
+                print(f"\n  konnte nicht schreiben: {exc}")
 
 
 def _parse_size(text: str, fallback: Tuple[int, int]) -> Tuple[int, int]:
@@ -780,7 +870,27 @@ def _parse_size(text: str, fallback: Tuple[int, int]) -> Tuple[int, int]:
             rows = cols = int(text)
     except ValueError:
         return fallback
-    return (rows, cols) if 4 <= rows <= 11 and 4 <= cols <= 11 else fallback
+    return (rows, cols) if 4 <= rows <= 13 and 4 <= cols <= 13 else fallback
+
+
+def _ask_number(prompt: str, default: int, lowest: int, highest: int) -> int:
+    """Liest eine Zahl ein und haelt sie in den erlaubten Grenzen."""
+    entered = input(f"{prompt} (Standard {default}): ").strip()
+    if not entered:
+        return default
+    try:
+        value = int(entered)
+    except ValueError:
+        print(f"  Nicht lesbar, verwende {default}.")
+        return default
+    if not lowest <= value <= highest:
+        print(f"  Ausserhalb von {lowest}-{highest}, verwende {default}.")
+        return default
+    return value
+
+
+def _yes(prompt: str) -> bool:
+    return input(prompt).strip().lower().startswith("j")
 
 
 def main() -> None:
@@ -788,38 +898,49 @@ def main() -> None:
     print()
 
     size = _parse_size(input("Groesse (z.B. 6 oder 5x7, Standard 6x6): "), (6, 6))
-
-    try:
-        entered = input("Anteil Skyline-Linien in Prozent (Standard 30): ").strip()
-        ratio = int(entered) / 100 if entered else 0.30
-        if not 0.0 < ratio < 1.0:
-            raise ValueError
-    except ValueError:
-        print("Nicht lesbar, verwende 30%.")
-        ratio = 0.30
+    percent = _ask_number("Anteil Skyline-Linien in Prozent", 30, 5, 60)
+    ratio = percent / 100
+    count = _ask_number("Wie viele Raetsel", 1, 1, 50)
 
     while True:
         rows, cols = size
-        print(f"\nErzeuge {rows}x{cols} mit {ratio:.0%} Skyline-Linien ...")
+        print(f"\nErzeuge {count} Raetsel {rows}x{cols} "
+              f"mit {ratio:.0%} Skyline-Linien ...")
         started = time.time()
-        try:
-            row_clues, col_clues, solution = generate_puzzle(rows, cols, ratio)
-        except RuntimeError as exc:
-            print(f"  {exc}")
+
+        batch = []
+        for number in range(1, count + 1):
+            try:
+                batch.append(generate_puzzle(rows, cols, ratio))
+            except RuntimeError as exc:
+                print(f"  Nr. {number}: {exc}")
+                break
+            if count > 1:
+                print(f"  {number}/{count} fertig "
+                      f"({time.time() - started:.1f}s)", end="\r", flush=True)
+
+        if not batch:
             return
-        print(f"  fertig in {time.time() - started:.2f}s\n")
+        print(f"  {len(batch)} fertig in {time.time() - started:.1f}s" + " " * 10)
 
-        print(render(row_clues, col_clues))
+        if len(batch) == 1 or _yes(f"\nAlle {len(batch)} hier anzeigen? (j/n): "):
+            for number, (row_clues, col_clues, _) in enumerate(batch, start=1):
+                if len(batch) > 1:
+                    print(f"\n--- Nr. {number} ---")
+                print(render(row_clues, col_clues))
 
-        if input("\nLoesung zeigen? (j/n): ").strip().lower().startswith("j"):
-            print()
-            print(render(row_clues, col_clues, solution))
+        if _yes("\nLoesungen zeigen? (j/n): "):
+            for number, (row_clues, col_clues, solution) in enumerate(batch, 1):
+                if len(batch) > 1:
+                    print(f"\n--- Loesung Nr. {number} ---")
+                print(render(row_clues, col_clues, solution))
 
-        _export_dialog(row_clues, col_clues, solution, rows, cols)
+        _export_dialog(batch, rows, cols)
 
-        if not input("\nNoch eins? (j/n): ").strip().lower().startswith("j"):
+        if not _yes("\nNoch eine Runde? (j/n): "):
             break
         size = _parse_size(input("Groesse (leer = gleich bleiben): "), size)
+        count = _ask_number("Wie viele Raetsel", count, 1, 50)
 
 
 if __name__ == "__main__":
