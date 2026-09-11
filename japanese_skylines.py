@@ -2,39 +2,37 @@
 Japanese Skylines - Japanese Sums x Skyscrapers (Produkt-Variante)
 ===================================================================
 
-Eine Kreuzung zweier Raetselarten. Beide Haelften werden gebraucht: die eine
-sagt, WIE VIEL in einer Gruppe steckt, die andere, WIE HOCH die Haeuser sind.
+Ein Japanese-Sums-Raetsel, bei dem ein Teil der Hinweise durch Skyline-
+Hinweise ERSETZT ist. Der Anteil ist einstellbar; bewaehrt sind 20 bis 40
+Prozent. Welche Linie welchen Typ traegt, wechselt von Raetsel zu Raetsel -
+Zeilen wie Spalten koennen beides sein.
 
-  * ZEILEN tragen JAPANESE-SUMS-Hinweise: die Summe jeder zusammenhaengenden
-    Zifferngruppe, in der Reihenfolge von links nach rechts.
+  * JAPANESE SUMS (die Mehrheit der Linien): die Summe jeder
+    zusammenhaengenden Zifferngruppe, in der Reihenfolge der Linie.
 
-  * SPALTEN tragen SKYLINE-Hinweise: fuer jede Gruppe das PRODUKT der Haeuser,
-    die man von oben sieht. Die klassische Skyscrapers-Variante nennt die
-    Anzahl sichtbarer Haeuser, die Summen-Variante ihre Summe - hier ist es
-    ihr Produkt.
+  * SKYLINE (der kleinere Teil, markiert mit ^): fuer jede Gruppe das
+    PRODUKT der Haeuser, die man von links bzw. von oben sieht. Die
+    klassische Skyscrapers-Variante nennt die Anzahl sichtbarer Haeuser,
+    die Summen-Variante ihre Summe - hier ist es ihr Produkt.
 
 REGELN
 ------
 1. Jede Zelle ist schwarz (leer) oder traegt eine Ziffer von 1 bis 9.
 2. In jeder Zeile und jeder Spalte kommt jede Ziffer hoechstens einmal vor.
 3. Jede Zeile und jede Spalte enthaelt mindestens eine Ziffer.
-4. Zwei Gruppen sind durch mindestens ein schwarzes Feld getrennt. Beide
-   Hinweislisten nennen ihre Gruppen in der Reihenfolge der Linie.
-5. ZEILEN-Hinweis: die Summe der Ziffern der Gruppe.
-6. SPALTEN-Hinweis: das Produkt der sichtbaren Haeuser der Gruppe. Innerhalb
-   einer Gruppe ist ein Haus von oben sichtbar, wenn alle Haeuser darueber
-   IN DERSELBEN GRUPPE niedriger sind. Das oberste Haus jeder Gruppe ist
-   immer sichtbar; ein schwarzes Feld beginnt die Sicht neu.
+4. Zwei Gruppen sind durch mindestens ein schwarzes Feld getrennt. Jede
+   Hinweisliste nennt ihre Gruppen in der Reihenfolge der Linie.
+5. SUMMEN-Hinweis: die Summe der Ziffern der Gruppe.
+6. SKYLINE-Hinweis: das Produkt der sichtbaren Haeuser der Gruppe. Innerhalb
+   einer Gruppe ist ein Haus sichtbar, wenn alle Haeuser davor IN DERSELBEN
+   GRUPPE niedriger sind. Das erste Haus jeder Gruppe ist immer sichtbar;
+   ein schwarzes Feld beginnt die Sicht neu.
 
-BEISPIELE
----------
-Zeile   3 # 5 1 7   -> Gruppen [3] und [5,1,7]
-                    -> Hinweise 3 und 13, denn 5+1+7 = 13
+BEISPIELE fuer dieselbe Linie  3 # 5 1 7  mit Gruppen [3] und [5,1,7]
 
-Spalte  3 # 5 1 7   -> Gruppen [3] und [5,1,7]
-        (von oben)  -> in der zweiten Gruppe sieht man 5, dann ist die 1
-                       verdeckt, dann ragt die 7 heraus
-                    -> Hinweise 3 und 35, denn 5*7 = 35
+   als Summen-Linie:    3 und 13, denn 5 + 1 + 7 = 13
+   als Skyline-Linie:   3 und 35, denn man sieht die 5, dann verdeckt sie
+                        die 1, dann ragt die 7 heraus: 5 * 7 = 35
 
 NUETZLICHE DEDUKTIONSREGELN
 ---------------------------
@@ -64,6 +62,11 @@ from typing import List, Optional, Sequence, Tuple
 CellValue = int  # 0 = schwarzes Feld, 1-9 = Haushoehe
 Pattern = Tuple[CellValue, ...]
 Clue = Tuple[int, ...]  # ein Wert je Gruppe, in Reihenfolge der Linie
+
+SUM = "sum"  # Gruppensummen (Japanese Sums)
+SKY = "sky"  # Produkt der sichtbaren Haeuser je Gruppe (Skyline)
+
+LineClue = Tuple[str, Clue]  # (Hinweistyp, Werte) fuer eine Zeile/Spalte
 
 
 # ---------------------------------------------------------------------------
@@ -195,14 +198,22 @@ def _build_patterns(size: int, clue: Clue, by_product: bool) -> Tuple[Pattern, .
 
 @lru_cache(maxsize=None)
 def patterns_for_sums(size: int, clue: Clue) -> Tuple[Pattern, ...]:
-    """Alle Zeilen der Laenge `size` mit diesen Gruppensummen."""
+    """Alle Linien der Laenge `size` mit diesen Gruppensummen."""
     return _build_patterns(size, clue, by_product=False)
 
 
 @lru_cache(maxsize=None)
 def patterns_for_products(size: int, clue: Clue) -> Tuple[Pattern, ...]:
-    """Alle Spalten der Laenge `size` mit diesen Gruppen-Sichtprodukten."""
+    """Alle Linien der Laenge `size` mit diesen Gruppen-Sichtprodukten."""
     return _build_patterns(size, clue, by_product=True)
+
+
+def patterns_for(size: int, line: LineClue) -> Tuple[Pattern, ...]:
+    """Alle Linien, die zu diesem Hinweis passen - je nach Hinweistyp."""
+    kind, clue = line
+    if kind == SKY:
+        return patterns_for_products(size, clue)
+    return patterns_for_sums(size, clue)
 
 
 # ---------------------------------------------------------------------------
@@ -212,13 +223,13 @@ def patterns_for_products(size: int, clue: Clue) -> Tuple[Pattern, ...]:
 def solve(
     rows: int,
     cols: int,
-    row_clues: Sequence[Clue],
-    col_clues: Sequence[Clue],
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
     max_solutions: int = 2,
 ) -> Tuple[int, Optional[List[List[CellValue]]]]:
     """Zaehlt Loesungen bis `max_solutions` und liefert die erste gefundene."""
-    row_domains = [list(patterns_for_sums(cols, c)) for c in row_clues]
-    col_domains = [list(patterns_for_products(rows, c)) for c in col_clues]
+    row_domains = [list(patterns_for(cols, c)) for c in row_clues]
+    col_domains = [list(patterns_for(rows, c)) for c in col_clues]
 
     if any(not d for d in row_domains) or any(not d for d in col_domains):
         return 0, None
@@ -331,29 +342,45 @@ def random_grid(rows: int, cols: int, black_prob: float) -> Optional[List[List[C
     return grid
 
 
-def derive_clues(grid: Sequence[Sequence[CellValue]]) -> Tuple[List[Clue], List[Clue]]:
-    """Zeilen-Gruppensummen und Spalten-Sichtprodukte ablesen."""
+def line_clue(line: Sequence[CellValue], kind: str) -> LineClue:
+    """Hinweis einer Linie im gewuenschten Typ."""
+    return (kind, group_products(line) if kind == SKY else group_sums(line))
+
+
+def derive_clues(
+    grid: Sequence[Sequence[CellValue]],
+    sky_rows: Sequence[int] = (),
+    sky_cols: Sequence[int] = (),
+) -> Tuple[List[LineClue], List[LineClue]]:
+    """
+    Hinweise ablesen. Die in `sky_rows`/`sky_cols` genannten Linien bekommen
+    Skyline-Produkte, alle uebrigen Japanese-Sums-Summen.
+    """
     rows, cols = len(grid), len(grid[0])
-    row_clues = [group_sums(grid[r]) for r in range(rows)]
-    col_clues = [group_products([grid[r][c] for r in range(rows)])
+    sky_r, sky_c = set(sky_rows), set(sky_cols)
+    row_clues = [line_clue(grid[r], SKY if r in sky_r else SUM)
+                 for r in range(rows)]
+    col_clues = [line_clue([grid[r][c] for r in range(rows)],
+                           SKY if c in sky_c else SUM)
                  for c in range(cols)]
     return row_clues, col_clues
 
 
-def _quality_ok(row_clues: Sequence[Clue], col_clues: Sequence[Clue]) -> bool:
+def _quality_ok(row_clues: Sequence[LineClue], col_clues: Sequence[LineClue]) -> bool:
     """Sorgt fuer abwechslungsreiche Hinweise statt lauter Kleinkram."""
-    sums = [v for group in row_clues for v in group]
-    products = [v for group in col_clues for v in group]
+    every = list(row_clues) + list(col_clues)
+    sums = [v for kind, clue in every if kind == SUM for v in clue]
+    products = [v for kind, clue in every if kind == SKY for v in clue]
     if not sums or not products:
         return False
     # Nicht zu viele Gruppen in einer Linie
-    if any(len(g) > 4 for g in row_clues) or any(len(g) > 4 for g in col_clues):
+    if any(len(clue) > 4 for _, clue in every):
         return False
     # Nicht ueberwiegend einstellige Gruppensummen
     if sum(1 for v in sums if v < 10) / len(sums) > 0.6:
         return False
-    # Ein paar zweistellige Sichtprodukte sollen dabei sein
-    if sum(1 for v in products if v >= 12) < max(2, len(products) // 4):
+    # Wenigstens ein Teil der Sichtprodukte soll zweistellig sein
+    if sum(1 for v in products if v >= 12) < max(1, len(products) // 4):
         return False
     return True
 
@@ -369,20 +396,40 @@ def _black_probability(rows: int, cols: int, attempt: int) -> float:
 # Raetsel-Erzeugung
 # ---------------------------------------------------------------------------
 
+def _pick_sky_lines(rows: int, cols: int, sky_ratio: float) -> Tuple[List[int], List[int]]:
+    """
+    Waehlt zufaellig, welche Linien einen Skyline-Hinweis bekommen. Gezaehlt
+    wird ueber Zeilen und Spalten gemeinsam, damit der Anteil stimmt.
+    """
+    total = rows + cols
+    count = max(1, min(total - 1, round(total * sky_ratio)))
+    chosen = random.sample(range(total), count)
+    return ([i for i in chosen if i < rows],
+            [i - rows for i in chosen if i >= rows])
+
+
 def generate_puzzle(
     rows: int = 6,
     cols: Optional[int] = None,
-    max_attempts: int = 400,
+    sky_ratio: float = 0.3,
+    max_attempts: int = 3000,
     time_limit: float = 120.0,
-) -> Tuple[List[Clue], List[Clue], List[List[CellValue]]]:
+) -> Tuple[List[LineClue], List[LineClue], List[List[CellValue]]]:
     """
     Erzeugt ein Raetsel mit garantiert eindeutiger Loesung.
+
+    `sky_ratio` ist der Anteil der Linien mit Skyline-Hinweis; der Rest
+    bekommt Japanese-Sums-Summen. Sinnvoll sind etwa 0.2 bis 0.4 - je mehr
+    Skyline, desto weniger Substanz tragen die Hinweise insgesamt.
+
     Rueckgabe: (Zeilen-Hinweise, Spalten-Hinweise, Loesung)
     """
     if cols is None:
         cols = rows
-    if not (4 <= rows <= 11 and 4 <= cols <= 11):
-        raise ValueError("Groesse muss zwischen 4 und 11 liegen")
+    if not (4 <= rows <= 13 and 4 <= cols <= 13):
+        raise ValueError("Groesse muss zwischen 4 und 13 liegen")
+    if not 0.0 < sky_ratio < 1.0:
+        raise ValueError("sky_ratio muss zwischen 0 und 1 liegen")
 
     started = time.time()
     attempt = 0
@@ -394,7 +441,8 @@ def generate_puzzle(
         if grid is None:
             continue
 
-        row_clues, col_clues = derive_clues(grid)
+        sky_rows, sky_cols = _pick_sky_lines(rows, cols, sky_ratio)
+        row_clues, col_clues = derive_clues(grid, sky_rows, sky_cols)
         if not _quality_ok(row_clues, col_clues):
             continue
 
@@ -413,31 +461,38 @@ def generate_puzzle(
 # ---------------------------------------------------------------------------
 
 def render(
-    row_clues: Sequence[Clue],
-    col_clues: Sequence[Clue],
+    row_clues: Sequence[LineClue],
+    col_clues: Sequence[LineClue],
     grid: Optional[Sequence[Sequence[CellValue]]] = None,
 ) -> str:
-    """Zeichnet das Raetsel: Summen links, Sichtprodukte oben."""
+    """
+    Zeichnet das Raetsel. Ein vorangestelltes ^ markiert eine Linie mit
+    Skyline-Hinweis; alle uebrigen tragen Gruppensummen.
+    """
     rows, cols = len(row_clues), len(col_clues)
 
-    left = [" ".join(map(str, c)) or "-" for c in row_clues]
+    left = []
+    for kind, clue in row_clues:
+        text = " ".join(map(str, clue)) or "-"
+        left.append(("^ " if kind == SKY else "  ") + text)
     label_width = max(len(s) for s in left)
 
-    columns = [[str(v) for v in c] for c in col_clues]
-    depth = max(len(c) for c in columns)
+    columns = [[str(v) for v in clue] for _, clue in col_clues]
+    marks = ["^" if kind == SKY else "" for kind, _ in col_clues]
+    depth = max(len(c) for c in columns) + 1  # eine Zeile fuer die Marker
     cell_width = max(3, max((len(s) for c in columns for s in c), default=1))
 
     pad = " " * (label_width + 1)
     border = pad + "+" + "+".join("-" * cell_width for _ in range(cols)) + "+"
 
-    out = []
-    for level in range(depth):
-        row = []
+    out = [pad + " " + " ".join(m.center(cell_width) for m in marks)]
+    for level in range(depth - 1):
+        line = []
         for c in columns:
-            # Hinweise unten ausrichten, damit sie am Gitter kleben
-            offset = level - (depth - len(c))
-            row.append((c[offset] if offset >= 0 else "").center(cell_width))
-        out.append(pad + " " + " ".join(row))
+            # Hinweise nach unten ausrichten, damit sie am Gitter kleben
+            offset = level - (depth - 1 - len(c))
+            line.append((c[offset] if offset >= 0 else "").center(cell_width))
+        out.append(pad + " " + " ".join(line))
 
     out.append(border)
     for r in range(rows):
@@ -451,9 +506,11 @@ def render(
         out.append(f"{left[r]:>{label_width}} |" + "|".join(cells) + "|")
         out.append(border)
 
+    sky_count = sum(1 for kind, _ in list(row_clues) + list(col_clues) if kind == SKY)
     out.append("")
-    out.append("  links = Summe jeder Zeilengruppe")
-    out.append("  oben  = Produkt der sichtbaren Haeuser jeder Spaltengruppe")
+    out.append("  ^ = Produkt der sichtbaren Haeuser jeder Gruppe (Skyline)")
+    out.append("  sonst = Summe jeder Gruppe (Japanese Sums)")
+    out.append(f"  {sky_count} von {rows + cols} Linien sind Skyline-Linien")
     return "\n".join(out)
 
 
@@ -483,12 +540,21 @@ def main() -> None:
 
     size = _parse_size(input("Groesse (z.B. 6 oder 5x7, Standard 6x6): "), (6, 6))
 
+    try:
+        entered = input("Anteil Skyline-Linien in Prozent (Standard 30): ").strip()
+        ratio = int(entered) / 100 if entered else 0.30
+        if not 0.0 < ratio < 1.0:
+            raise ValueError
+    except ValueError:
+        print("Nicht lesbar, verwende 30%.")
+        ratio = 0.30
+
     while True:
         rows, cols = size
-        print(f"\nErzeuge {rows}x{cols} ...")
+        print(f"\nErzeuge {rows}x{cols} mit {ratio:.0%} Skyline-Linien ...")
         started = time.time()
         try:
-            row_clues, col_clues, solution = generate_puzzle(rows, cols)
+            row_clues, col_clues, solution = generate_puzzle(rows, cols, ratio)
         except RuntimeError as exc:
             print(f"  {exc}")
             return
