@@ -554,9 +554,30 @@ def render(
 # ---------------------------------------------------------------------------
 
 _INK = (20, 20, 20)
-_SKY_INK = (12, 90, 160)
 _BLACK_CELL = (44, 48, 54)
 _GRID = (60, 60, 60)
+
+# Farben fuer die Skyline-Hinweise, kraeftig genug fuer den Druck. Im
+# Graustufendruck werden sie zu Grau und heben sich damit immer noch vom
+# Schwarz der Summen-Hinweise ab.
+SKY_COLORS = {
+    "blau": (12, 90, 160),
+    "rot": (185, 28, 40),
+    "gruen": (18, 115, 60),
+    "violett": (118, 40, 150),
+    "orange": (196, 88, 10),
+    "schwarz": (20, 20, 20),
+}
+_SKY_INK = SKY_COLORS["blau"]
+
+
+def _sky_ink(color) -> Tuple[int, int, int]:
+    """Nimmt einen Farbnamen aus SKY_COLORS oder direkt ein RGB-Tripel."""
+    if color is None:
+        return _SKY_INK
+    if isinstance(color, str):
+        return SKY_COLORS.get(color.strip().lower(), _SKY_INK)
+    return tuple(color)
 
 
 # Schriften, die auf den drei gaengigen Systemen vorhanden sind. Fehlt eine
@@ -649,12 +670,17 @@ def _render(
     grid: Optional[Sequence[Sequence[CellValue]]] = None,
     title: str = "",
     cell: int = 96,
+    sky_color=None,
 ):
     """
     Zeichnet das Raetsel und gibt das Bild zurueck. `cell` ist die Kantenlaenge
     einer Gitterzelle in Pixeln; alle uebrigen Masse haengen daran.
+    `sky_color` faerbt die Skyline-Hinweise - ein Name aus SKY_COLORS oder ein
+    RGB-Tripel.
     """
     from PIL import Image, ImageDraw
+
+    sky = _sky_ink(sky_color)
 
     rows, cols = len(row_clues), len(col_clues)
     clue_font = _font(int(cell * 0.42))
@@ -714,7 +740,7 @@ def _render(
             for i, value in enumerate(clue):
                 x = grid_right + i * slot
                 _centered(draw, str(value), (x, y, x + slot, y + cell),
-                          clue_font, _SKY_INK)
+                          clue_font, sky)
         else:  # links, letzte Gruppe naeher am Gitter
             for i, value in enumerate(reversed(clue)):
                 x = grid_x - (i + 1) * slot
@@ -727,7 +753,7 @@ def _render(
             for i, value in enumerate(clue):
                 y = grid_bottom + i * slot
                 _centered(draw, str(value), (x, y, x + cell, y + slot),
-                          clue_font, _SKY_INK)
+                          clue_font, sky)
         else:  # oben, letzte Gruppe naeher am Gitter
             for i, value in enumerate(reversed(clue)):
                 y = grid_y - (i + 1) * slot
@@ -763,7 +789,7 @@ def _render(
     # Legende, farblich passend zu den Hinweisen selbst
     note_y = grid_bottom + deep_bottom * slot + int(cell * 0.26)
     step = int(cell * 0.34)
-    for i, (text, ink) in enumerate(zip(notes, (_INK, _SKY_INK))):
+    for i, (text, ink) in enumerate(zip(notes, (_INK, sky))):
         draw.text((margin, note_y + i * step), text, font=note_font, fill=ink)
 
     return image
@@ -780,6 +806,7 @@ def _page(
     title: str = "",
     dpi: int = 300,
     paper: Tuple[float, float] = _A4,
+    sky_color=None,
 ):
     """
     Setzt das Raetsel mittig auf ein Blatt und waehlt die Zellgroesse so, dass
@@ -793,14 +820,14 @@ def _page(
 
     # Einmal klein vormessen, daraus die passende Zellgroesse hochrechnen
     probe_cell = 60
-    probe = _render(row_clues, col_clues, grid, title, probe_cell)
+    probe = _render(row_clues, col_clues, grid, title, probe_cell, sky_color)
     factor = min(usable[0] / probe.width, usable[1] / probe.height)
     cell = max(20, int(probe_cell * factor))
 
-    art = _render(row_clues, col_clues, grid, title, cell)
+    art = _render(row_clues, col_clues, grid, title, cell, sky_color)
     while (art.width > usable[0] or art.height > usable[1]) and cell > 20:
         cell = int(cell * 0.94) or 20
-        art = _render(row_clues, col_clues, grid, title, cell)
+        art = _render(row_clues, col_clues, grid, title, cell, sky_color)
 
     sheet = Image.new("RGB", sheet_px, "white")
     sheet.paste(art, ((sheet_px[0] - art.width) // 2,
@@ -816,6 +843,7 @@ def save_image(
     title: str = "",
     cell: int = 96,
     dpi: int = 300,
+    sky_color=None,
 ) -> str:
     """
     Speichert das Raetsel. Die Endung von `path` bestimmt das Format: .pdf
@@ -825,16 +853,17 @@ def save_image(
     """
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     if path.lower().endswith(".pdf"):
-        sheet = _page(row_clues, col_clues, grid, title, dpi)
+        sheet = _page(row_clues, col_clues, grid, title, dpi, sky_color=sky_color)
         # quality hoch, weil Pillow PDF-Seiten als JPEG ablegt und die
         # Voreinstellung duenne Linien ausfransen laesst
         sheet.save(path, "PDF", resolution=float(dpi), quality=95)
     else:
-        _render(row_clues, col_clues, grid, title, cell).save(path)
+        _render(row_clues, col_clues, grid, title, cell, sky_color).save(path)
     return os.path.abspath(path)
 
 
-def save_pdf(path: str, sheets: Sequence[tuple], dpi: int = 300) -> str:
+def save_pdf(path: str, sheets: Sequence[tuple], dpi: int = 300,
+             sky_color=None) -> str:
     """
     Schreibt mehrere Raetsel als mehrseitiges A4-PDF, ein Blatt je Raetsel.
     `sheets` enthaelt Tupel (row_clues, col_clues, grid, title); `grid` darf
@@ -843,7 +872,8 @@ def save_pdf(path: str, sheets: Sequence[tuple], dpi: int = 300) -> str:
     if not sheets:
         raise ValueError("Keine Seiten zum Speichern")
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    pages = [_page(rc, cc, grid, title, dpi) for rc, cc, grid, title in sheets]
+    pages = [_page(rc, cc, grid, title, dpi, sky_color=sky_color)
+             for rc, cc, grid, title in sheets]
     pages[0].save(path, "PDF", resolution=float(dpi), quality=95,
                   save_all=True, append_images=pages[1:])
     return os.path.abspath(path)
@@ -885,6 +915,13 @@ def _export_dialog(batch: Sequence[tuple], rows: int, cols: int) -> None:
             "PDF: alles in einer Datei (a) oder je Raetsel eine (e)? "
         ).strip().lower().startswith("e")
 
+    choices = "/".join(SKY_COLORS)
+    picked = input(f"Farbe der Skyline-Hinweise ({choices}, Standard blau): ")
+    picked = picked.strip().lower()
+    if picked and picked not in SKY_COLORS:
+        print("  Farbe unbekannt, verwende blau.")
+    sky_color = picked if picked in SKY_COLORS else "blau"
+
     folder = input("Ordner (leer = aktueller Ordner): ").strip()
     folder = os.path.expanduser(folder) if folder else os.getcwd()
 
@@ -915,14 +952,15 @@ def _export_dialog(batch: Sequence[tuple], rows: int, cols: int) -> None:
                     path = os.path.join(folder, f"{stem}_{label}.pdf")
                     print(f"  schreibe {os.path.basename(path)} ...",
                           end="", flush=True)
-                    written = save_pdf(path, pages)
+                    written = save_pdf(path, pages, sky_color=sky_color)
                     print(f"\r  gespeichert: {written}" + " " * 14)
                 else:
                     for number, page in enumerate(pages, start=1):
                         suffix = f"_{number}" if many else ""
                         path = os.path.join(folder,
                                             f"{stem}{suffix}_{label}{ending}")
-                        written = save_image(path, *page)
+                        written = save_image(path, *page,
+                                             sky_color=sky_color)
                         print(f"  gespeichert: {written}")
             except OSError as exc:
                 print(f"\n  konnte nicht schreiben: {exc}")
