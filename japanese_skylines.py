@@ -3,17 +3,25 @@ Japanese Skylines - Japanese Sums x Skyscrapers (Produkt-Variante)
 ===================================================================
 
 Ein Japanese-Sums-Raetsel, bei dem ein Teil der Hinweise durch Skyline-
-Hinweise ERSETZT ist. Der Anteil ist einstellbar; bewaehrt sind 20 bis 40
-Prozent. Welche Linie welchen Typ traegt, wechselt von Raetsel zu Raetsel -
-Zeilen wie Spalten koennen beides sein.
+Hinweise ERSETZT ist. Alle vier Seiten des Gitters tragen Hinweise, und die
+Seite verraet den Typ:
 
-  * JAPANESE SUMS (die Mehrheit der Linien): die Summe jeder
-    zusammenhaengenden Zifferngruppe, in der Reihenfolge der Linie.
+  * LINKS und OBEN stehen JAPANESE-SUMS-Hinweise: die Summe jeder
+    zusammenhaengenden Zifferngruppe, gelesen von links bzw. von oben.
 
-  * SKYLINE (der kleinere Teil, markiert mit ^): fuer jede Gruppe das
-    PRODUKT der Haeuser, die man von links bzw. von oben sieht. Die
+  * RECHTS und UNTEN stehen SKYLINE-Hinweise: fuer jede Gruppe das PRODUKT
+    der Haeuser, die man VON DORT sieht, also von rechts bzw. von unten. Die
     klassische Skyscrapers-Variante nennt die Anzahl sichtbarer Haeuser,
     die Summen-Variante ihre Summe - hier ist es ihr Produkt.
+
+Jede Linie traegt genau einen Hinweis, entweder links/oben oder rechts/unten.
+Der Anteil der Skyline-Linien ist einstellbar; bewaehrt sind 20 bis 40
+Prozent. Welche Linie welchen Typ bekommt, wechselt von Raetsel zu Raetsel.
+
+Warum die Seiten so verteilt sind: eine Gruppensumme ist von beiden Seiten
+dieselbe Zahl, ein Summen-Hinweis rechts waere also nur die umgedrehte Liste
+des linken - ohne neuen Inhalt. Sichtprodukte dagegen haengen an der
+Blickrichtung und sind auf der Gegenseite echte Zusatzinformation.
 
 REGELN
 ------
@@ -21,33 +29,37 @@ REGELN
 2. In jeder Zeile und jeder Spalte kommt jede Ziffer hoechstens einmal vor.
 3. Jede Zeile und jede Spalte enthaelt mindestens eine Ziffer.
 4. Zwei Gruppen sind durch mindestens ein schwarzes Feld getrennt. Jede
-   Hinweisliste nennt ihre Gruppen in der Reihenfolge der Linie.
-5. SUMMEN-Hinweis: die Summe der Ziffern der Gruppe.
-6. SKYLINE-Hinweis: das Produkt der sichtbaren Haeuser der Gruppe. Innerhalb
-   einer Gruppe ist ein Haus sichtbar, wenn alle Haeuser davor IN DERSELBEN
-   GRUPPE niedriger sind. Das erste Haus jeder Gruppe ist immer sichtbar;
-   ein schwarzes Feld beginnt die Sicht neu.
+   Hinweisliste nennt ihre Gruppen in der Reihenfolge, in der man sie von
+   der Seite des Hinweises aus antrifft.
+5. SUMMEN-Hinweis (links/oben): die Summe der Ziffern der Gruppe.
+6. SKYLINE-Hinweis (rechts/unten): das Produkt der sichtbaren Haeuser der
+   Gruppe. Innerhalb einer Gruppe ist ein Haus sichtbar, wenn alle Haeuser
+   davor IN DERSELBEN GRUPPE niedriger sind. Das erste Haus jeder Gruppe ist
+   immer sichtbar; ein schwarzes Feld beginnt die Sicht neu.
 
-BEISPIELE fuer dieselbe Linie  3 # 5 1 7  mit Gruppen [3] und [5,1,7]
+BEISPIEL fuer dieselbe Zeile  3 # 5 1 7  mit Gruppen [3] und [5,1,7]
 
-   als Summen-Linie:    3 und 13, denn 5 + 1 + 7 = 13
-   als Skyline-Linie:   3 und 35, denn man sieht die 5, dann verdeckt sie
-                        die 1, dann ragt die 7 heraus: 5 * 7 = 35
+   als Summen-Zeile, links:    3 und 13, denn 5 + 1 + 7 = 13
+   als Skyline-Zeile, rechts:  7 und 3 - von rechts trifft man zuerst die
+                               Gruppe [5,1,7]. Dort steht die 7 vorn und
+                               verdeckt 1 und 5, bleibt also allein sichtbar.
+                               Dann folgt die 3.
 
 NUETZLICHE DEDUKTIONSREGELN
 ---------------------------
-* Die sichtbaren Haeuser einer Spaltengruppe bilden eine streng aufsteigende
-  Folge. Ein Spalten-Hinweis ist also stets ein Produkt lauter verschiedener
+* Die sichtbaren Haeuser einer Gruppe bilden eine streng aufsteigende Folge.
+  Ein Skyline-Hinweis ist also stets ein Produkt lauter verschiedener
   Ziffern - 16 oder 25 kann kein Hinweis sein.
-* Ein Spalten-Hinweis von 5 oder 7 heisst: diese Ziffer steht ganz oben in
-  ihrer Gruppe, alles darunter in der Gruppe ist kleiner.
-* Ein Spalten-Hinweis 1 heisst: die Gruppe beginnt mit einer 1 und faellt
-  danach nur noch ab - eine 1 ganz oben verdeckt nichts, also besteht die
-  Gruppe aus genau dieser 1.
-* Ein grosser Spalten-Hinweis wie 504 = 7*8*9 erzwingt mindestens drei
+* Ein Skyline-Hinweis von 5 oder 7 heisst: diese Ziffer steht am aeusseren
+  Ende ihrer Gruppe, alles dahinter in der Gruppe ist kleiner.
+* Ein Skyline-Hinweis 1 heisst: die Gruppe beginnt von dieser Seite mit
+  einer 1. Eine 1 verdeckt nichts, also besteht die Gruppe aus genau ihr.
+* Ein grosser Skyline-Hinweis wie 504 = 7*8*9 erzwingt mindestens drei
   Zellen mit stark steigenden Werten.
-* Eine Zeilengruppe mit Summe s und Laenge L braucht L verschiedene Ziffern:
+* Eine Gruppe mit Summe s auf L Zellen braucht L verschiedene Ziffern:
   Summe 6 auf drei Zellen geht nur als 1+2+3.
+* Summe und Sichtprodukt beschreiben dieselbe Gruppe von zwei Seiten - wer
+  eine Gruppe aus einer Richtung festgelegt hat, kennt sie ganz.
 
 Jedes erzeugte Raetsel hat garantiert genau eine Loesung.
 """
@@ -93,9 +105,13 @@ def group_sums(line: Sequence[CellValue]) -> Clue:
 
 
 def group_products(line: Sequence[CellValue]) -> Clue:
-    """Spalten-Hinweis: Produkt der in jeder Gruppe sichtbaren Haeuser."""
+    """
+    Skyline-Hinweis, VON HINTEN gelesen: Produkt der in jeder Gruppe
+    sichtbaren Haeuser, mit Blick von rechts bzw. von unten. Die Gruppen
+    erscheinen in der Reihenfolge, in der man sie von dort aus antrifft.
+    """
     clue = []
-    for group in _groups(line):
+    for group in _groups(list(line)[::-1]):
         product, highest = 1, 0
         for value in group:
             if value > highest:
@@ -205,8 +221,12 @@ def patterns_for_sums(size: int, clue: Clue) -> Tuple[Pattern, ...]:
 
 @lru_cache(maxsize=None)
 def patterns_for_products(size: int, clue: Clue) -> Tuple[Pattern, ...]:
-    """Alle Linien der Laenge `size` mit diesen Gruppen-Sichtprodukten."""
-    return _build_patterns(size, clue, by_product=True)
+    """
+    Alle Linien der Laenge `size`, deren Sichtprodukte VON HINTEN gelesen
+    diesem Hinweis entsprechen. Gebaut wird vorwaerts, dann gespiegelt: eine
+    Linie, die von links `clue` ergibt, ergibt umgedreht von rechts dasselbe.
+    """
+    return tuple(p[::-1] for p in _build_patterns(size, clue, by_product=True))
 
 
 def patterns_for(size: int, line: LineClue) -> Tuple[Pattern, ...]:
@@ -472,26 +492,33 @@ def render(
     """
     rows, cols = len(row_clues), len(col_clues)
 
-    left = []
+    # Summen-Zeilen beschriften links, Skyline-Zeilen rechts
+    left, right = [], []
     for kind, clue in row_clues:
-        text = " ".join(map(str, clue)) or "-"
-        left.append(("^ " if kind == SKY else "  ") + text)
-    label_width = max(len(s) for s in left)
+        text = " ".join(map(str, clue))
+        left.append("" if kind == SKY else text)
+        right.append(text if kind == SKY else "")
+    left_width = max(len(s) for s in left)
 
-    columns = [[str(v) for v in clue] for _, clue in col_clues]
-    marks = ["^" if kind == SKY else "" for kind, _ in col_clues]
-    depth = max(len(c) for c in columns) + 1  # eine Zeile fuer die Marker
-    cell_width = max(3, max((len(s) for c in columns for s in c), default=1))
+    # Summen-Spalten beschriften oben, Skyline-Spalten unten
+    above, below = [], []
+    for kind, clue in col_clues:
+        text = [str(v) for v in clue]
+        above.append([] if kind == SKY else text)
+        below.append(text if kind == SKY else [])
+    high = max((len(c) for c in above), default=0)
+    deep = max((len(c) for c in below), default=0)
+    cell_width = max(3, max((len(s) for c in above + below for s in c), default=1))
 
-    pad = " " * (label_width + 1)
+    pad = " " * (left_width + 1)
     border = pad + "+" + "+".join("-" * cell_width for _ in range(cols)) + "+"
 
-    out = [pad + " " + " ".join(m.center(cell_width) for m in marks)]
-    for level in range(depth - 1):
+    out = []
+    for level in range(high):
         line = []
-        for c in columns:
-            # Hinweise nach unten ausrichten, damit sie am Gitter kleben
-            offset = level - (depth - 1 - len(c))
+        for c in above:
+            # nach unten ausrichten, damit die Hinweise am Gitter kleben
+            offset = level - (high - len(c))
             line.append((c[offset] if offset >= 0 else "").center(cell_width))
         out.append(pad + " " + " ".join(line))
 
@@ -504,14 +531,21 @@ def render(
             else:
                 value = grid[r][c]
                 cells.append(("#" if value == 0 else str(value)).center(cell_width))
-        out.append(f"{left[r]:>{label_width}} |" + "|".join(cells) + "|")
+        tail = f" {right[r]}" if right[r] else ""
+        out.append(f"{left[r]:>{left_width}} |" + "|".join(cells) + "|" + tail)
         out.append(border)
 
-    sky_count = sum(1 for kind, _ in list(row_clues) + list(col_clues) if kind == SKY)
+    for level in range(deep):
+        line = []
+        for c in below:
+            line.append((c[level] if level < len(c) else "").center(cell_width))
+        out.append(pad + " " + " ".join(line))
+
+    sky = sum(1 for kind, _ in list(row_clues) + list(col_clues) if kind == SKY)
     out.append("")
-    out.append("  ^ = Produkt der sichtbaren Haeuser jeder Gruppe (Skyline)")
-    out.append("  sonst = Summe jeder Gruppe (Japanese Sums)")
-    out.append(f"  {sky_count} von {rows + cols} Linien sind Skyline-Linien")
+    out.append("  links und oben  = Summe jeder Gruppe")
+    out.append("  rechts und unten = Produkt der von dort sichtbaren Haeuser")
+    out.append(f"  {sky} von {rows + cols} Linien sind Skyline-Linien")
     return "\n".join(out)
 
 
@@ -521,10 +555,8 @@ def render(
 
 _INK = (20, 20, 20)
 _SKY_INK = (12, 90, 160)
-_SKY_TINT = (226, 240, 251)
 _BLACK_CELL = (44, 48, 54)
 _GRID = (60, 60, 60)
-_FAINT = (130, 130, 130)
 
 
 def _font(size: int):
@@ -571,8 +603,14 @@ def save_image(
     title_font = _font(int(cell * 0.38))
     note_font = _font(int(cell * 0.26))
 
-    deep_left = max(len(clue) for _, clue in row_clues)
-    deep_top = max(len(clue) for _, clue in col_clues)
+    # Summen stehen links und oben, Skyline-Produkte rechts und unten
+    def depth(clues, kind) -> int:
+        return max((len(clue) for k, clue in clues if k == kind), default=0)
+
+    deep_left = depth(row_clues, SUM)
+    deep_right = depth(row_clues, SKY)
+    deep_top = depth(col_clues, SUM)
+    deep_bottom = depth(col_clues, SKY)
 
     # Hinweisfeld so breit machen, dass auch dreistellige Zahlen hineinpassen
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
@@ -585,16 +623,18 @@ def save_image(
                  for _, clue in list(row_clues) + list(col_clues) for v in clue)
     slot = max(int(cell * 0.55), widest + int(cell * 0.26))
 
-    note = ("blau hinterlegt: Produkt der sichtbaren Haeuser je Gruppe"
-            "      sonst: Summe je Gruppe")
-    note_width = int(cell * 0.42) + text_width(note, note_font)
+    note = ("links und oben: Summe je Gruppe        "
+            "rechts und unten: Produkt der von dort sichtbaren Haeuser")
+    note_width = text_width(note, note_font)
 
     margin = int(cell * 0.55)
     head = int(cell * 0.95) if title else margin
     grid_x = margin + deep_left * slot
     grid_y = head + deep_top * slot
-    width = max(grid_x + cols * cell + margin, margin + note_width + margin)
-    height = grid_y + rows * cell + margin + int(cell * 0.85)
+    width = max(grid_x + cols * cell + deep_right * slot + margin,
+                margin + note_width + margin)
+    height = (grid_y + rows * cell + deep_bottom * slot
+              + margin + int(cell * 0.85))
 
     image = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(image)
@@ -603,29 +643,35 @@ def save_image(
         _centered(draw, title, (margin, int(cell * 0.12), width - margin,
                                 head - int(cell * 0.18)), title_font, _INK)
 
-    # Getoente Streifen hinter den Hinweisen der Skyline-Linien
-    for r, (kind, _) in enumerate(row_clues):
-        if kind == SKY:
-            y = grid_y + r * cell
-            draw.rectangle([margin, y, grid_x - 1, y + cell - 1], fill=_SKY_TINT)
-    for c, (kind, _) in enumerate(col_clues):
-        if kind == SKY:
-            x = grid_x + c * cell
-            draw.rectangle([x, head, x + cell - 1, grid_y - 1], fill=_SKY_TINT)
+    # Hinweise wachsen vom Gitter nach aussen, damit sie daran kleben
+    grid_right = grid_x + cols * cell
+    grid_bottom = grid_y + rows * cell
 
-    # Hinweise: rechtsbuendig bzw. unten am Gitter, damit sie daran kleben
     for r, (kind, clue) in enumerate(row_clues):
-        ink = _SKY_INK if kind == SKY else _INK
         y = grid_y + r * cell
-        for i, value in enumerate(reversed(clue)):
-            x = grid_x - (i + 1) * slot
-            _centered(draw, str(value), (x, y, x + slot, y + cell), clue_font, ink)
+        if kind == SKY:  # rechts, erste Gruppe von rechts zuerst
+            for i, value in enumerate(clue):
+                x = grid_right + i * slot
+                _centered(draw, str(value), (x, y, x + slot, y + cell),
+                          clue_font, _SKY_INK)
+        else:  # links, letzte Gruppe naeher am Gitter
+            for i, value in enumerate(reversed(clue)):
+                x = grid_x - (i + 1) * slot
+                _centered(draw, str(value), (x, y, x + slot, y + cell),
+                          clue_font, _INK)
+
     for c, (kind, clue) in enumerate(col_clues):
-        ink = _SKY_INK if kind == SKY else _INK
         x = grid_x + c * cell
-        for i, value in enumerate(reversed(clue)):
-            y = grid_y - (i + 1) * slot
-            _centered(draw, str(value), (x, y, x + cell, y + slot), clue_font, ink)
+        if kind == SKY:  # unten, erste Gruppe von unten zuerst
+            for i, value in enumerate(clue):
+                y = grid_bottom + i * slot
+                _centered(draw, str(value), (x, y, x + cell, y + slot),
+                          clue_font, _SKY_INK)
+        else:  # oben, letzte Gruppe naeher am Gitter
+            for i, value in enumerate(reversed(clue)):
+                y = grid_y - (i + 1) * slot
+                _centered(draw, str(value), (x, y, x + cell, y + slot),
+                          clue_font, _INK)
 
     # Zellen
     for r in range(rows):
@@ -650,11 +696,12 @@ def save_image(
     draw.rectangle([grid_x, grid_y, grid_x + cols * cell, grid_y + rows * cell],
                    outline=_INK, width=4)
 
-    # Legende
-    note_y = grid_y + rows * cell + int(cell * 0.26)
-    draw.rectangle([margin, note_y + 2, margin + int(cell * 0.3),
-                    note_y + int(cell * 0.3)], fill=_SKY_TINT, outline=_FAINT)
-    draw.text((margin + int(cell * 0.42), note_y), note, font=note_font, fill=_FAINT)
+    # Legende, farblich passend zu den Hinweisen selbst
+    note_y = grid_bottom + deep_bottom * slot + int(cell * 0.26)
+    head_note, _, sky_note = note.partition("rechts und unten")
+    draw.text((margin, note_y), head_note, font=note_font, fill=_INK)
+    draw.text((margin + text_width(head_note, note_font), note_y),
+              "rechts und unten" + sky_note, font=note_font, fill=_SKY_INK)
 
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
